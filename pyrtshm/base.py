@@ -1,7 +1,7 @@
 """
-project_name base module.
+pyrtshm base module.
 
-This is the principal module of the project_name project.
+This is the principal module of the pyrtshm project.
 here you put your main classes and objects.
 
 Be creative! do whatever you want!
