@@ -19,10 +19,15 @@ show:             ## Show the current environment.
 	@$(ENV_PREFIX)python -m site
 
 .PHONY: install
-install:          ## Install the project in dev mode.
+install: protobuf         ## Install the project in dev mode.
 	@if [ "$(USING_POETRY)" ]; then poetry install && exit; fi
 	@echo "Don't forget to run 'make virtualenv' if you got errors."
 	$(ENV_PREFIX)pip install -e .[test]
+
+.PHONY: protobuf
+protobuf:
+	protoc -I=. --experimental_allow_proto3_optional \
+		--python_out=. ./pyrtshm/protocol/protocol_v1.proto
 
 .PHONY: fmt
 fmt:              ## Format code using black & isort.
@@ -38,8 +43,8 @@ lint:             ## Run pep8, black, mypy linters.
 	$(ENV_PREFIX)mypy --ignore-missing-imports pyrtshm/
 
 .PHONY: test
-test: lint        ## Run tests and generate coverage report.
-	$(ENV_PREFIX)pytest -v --cov-config .coveragerc --cov=pyrtshm -l --tb=short --maxfail=1 tests/
+test: lint protobuf        ## Run tests and generate coverage report.
+	$(ENV_PREFIX)pytest -v -s --cov-config .coveragerc --cov=pyrtshm -l --tb=short --maxfail=1 tests/
 	$(ENV_PREFIX)coverage xml
 	$(ENV_PREFIX)coverage html
 
@@ -62,6 +67,7 @@ clean:            ## Clean unused files.
 	@rm -rf htmlcov
 	@rm -rf .tox/
 	@rm -rf docs/_build
+	@rm -rf pyrtshm/protocol/*_pb2.py
 
 .PHONY: virtualenv
 virtualenv:       ## Create a virtual environment.
@@ -75,7 +81,7 @@ virtualenv:       ## Create a virtual environment.
 	@echo "!!! Please run 'source .venv/bin/activate' to enable the environment !!!"
 
 .PHONY: release
-release:          ## Create a new tag for release.
+release: protobuf          ## Create a new tag for release.
 	@echo "WARNING: This operation will create s version tag and push to github"
 	@read -p "Version? (provide the next x.y.z semver) : " TAG
 	@echo "creating git tag : $${TAG}"

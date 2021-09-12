@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+
+message State {
+  uint32 proto_version = 1;
+  int64 key = 2;
+  uint64 seq_number = 3;
+  optional bytes data = 4;
+}
