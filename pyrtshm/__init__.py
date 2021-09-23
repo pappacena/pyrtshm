@@ -1,3 +1,3 @@
-from .base import RTSharedMemory
+from .base import SharedMemory
 
-__all__ = ["RTSharedMemory"]
+__all__ = ["SharedMemory"]

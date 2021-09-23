@@ -1,9 +1,15 @@
 syntax = "proto3";
 
 
+enum OperationType {
+  SET = 0;
+  DELETE = 1;
+}
+
 message State {
   uint32 proto_version = 1;
-  int64 key = 2;
-  uint64 seq_number = 3;
-  optional bytes data = 4;
+  bytes key = 2;
+  optional OperationType operation_type = 3;
+  uint64 seq_number = 4;
+  optional bytes data = 5;
 }

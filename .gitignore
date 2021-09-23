@@ -130,3 +130,6 @@ dmypy.json
 
 # templates
 .github/templates/*
+
+# Compiled protobuf
+pyrtshm/protocol/*_pb2.py

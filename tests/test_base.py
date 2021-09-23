@@ -1,57 +1,108 @@
-import socket
 import time
 from unittest import TestCase
 
-from pyrtshm import RTSharedMemory
-from pyrtshm.protocol.protocol_v1_pb2 import State
+from pyrtshm import SharedMemory
+
+
+class ValueObject:
+    def __init__(self, a, b, c):
+        self.a = a
+        self.b = b
+        self.c = c
+
+    def __eq__(self, other):
+        return other.a == self.a and other.b == self.b and other.c == self.c
 
 
 class TestBasicForwarding(TestCase):
-    def start_nodes(self, n=5, initial_port=5551):
+    def start_nodes(self, n=3, initial_port=5551):
         host = '127.0.0.1'
         all_forwards = [(host, initial_port + i) for i in range(n)]
         nodes = []
         for i in range(n):
             forwards = [(host, port) for host, port in all_forwards
                         if port != initial_port + i]
-            nodes.append(RTSharedMemory((host, initial_port + i), forwards))
-
+            nodes.append(SharedMemory((host, initial_port + i), forwards))
         for n in nodes:
+            # Force socket initialization and timeout.
+            n.init_socket()
+            n.socket.settimeout(0.1)
             n.start()
+            self.addCleanup(n.stop)
             self.addCleanup(n.join)
         return nodes
+
+    def stop_nodes(self, nodes):
+        for n in nodes:
+            n.stop()
+            n.join()
+            n.socket.close()
 
     def wait_nodes(self, nodes):
         time.sleep(0.1)
         for n in nodes:
-            n.join()
+            n.stop()
 
-    def test_set_local_value_forwards(self):
-        nodes = self.start_nodes(10)
-
+    def values_got_set_and_forwarded(self, nodes, key, value):
         some_node = nodes[0]
-        msg = State(key=444, seq_number=1, data=b"some data goes here")
-        some_node[444] = msg
+        some_node[key] = value
 
         self.wait_nodes(nodes)
         for n in nodes:
-            self.assertEqual(1, n[444].seq_number)
-            self.assertEqual(444, n[444].key)
-            self.assertEqual(b"some data goes here", n[444].data)
+            retries = 3
+            while retries > 0:
+                if n[key] == value:
+                    break
+                else:
+                    if retries == 0:
+                        return False
+                    else:
+                        retries -= 1
+                        time.sleep(0.05)
+        return True
 
-    def test_receive_message_forwards(self):
-        nodes = self.start_nodes(3, initial_port=5551)
+    def test_primitive_object_set(self):
+        keys = [1, b"bin", "some str", 1.34, (1, 2)]
+        values = keys + [{1: "a"}, [3, 2, 1], ValueObject("1", b"x", 123)]
+        for key in keys:
+            if key == 1: continue
+            for value in values:
+                nodes = self.start_nodes()
+                self.assertTrue(
+                    self.values_got_set_and_forwarded(nodes, key, value),
+                    f"Error setting {key}: {value}")
+                self.stop_nodes(nodes)
+            return
 
-        msg = State()
-        msg.key = 123
-        msg.seq_number = 1
-        msg.data = b"some data is here"
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.sendto(msg.SerializeToString(), ('127.0.0.1', 5551))
+    def test_set_value(self):
+        nodes = self.start_nodes()
+        main = nodes[0]
+        main[1] = 123
 
         self.wait_nodes(nodes)
-
         for n in nodes:
-            self.assertEqual(b"some data is here", n[123].data)
+            self.assertEqual(123, n[1])
+
+    def test_set_value_multiple_times(self):
+        nodes = self.start_nodes()
+        main = nodes[0]
+        main["x"] = 123
+        main["x"] = 333
+        main["x"] = 987
+
+        self.wait_nodes(nodes)
+        for n in nodes:
+            self.assertEqual(3, n.states["x"].seq_number)
+            self.assertEqual(987, n["x"])
+
+    def test_delete_value(self):
+        nodes = self.start_nodes()
+        main = nodes[0]
+
+        main[1] = 123
+        del main[1]
+        self.wait_nodes(nodes)
+        for n in nodes:
+            self.assertNotIn("x", n.states)
+            self.assertRaises(KeyError, lambda: n[1])
 
