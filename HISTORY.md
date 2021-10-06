@@ -2,8 +2,10 @@ Changelog
 =========
 
 
-(unreleased)
-------------
+0.0.2 (2021-10-06)
+------------------
+- Including deps. [pappacena]
+- Release: version 0.0.1 🚀 [pappacena]
 - Release: version 0.0.1 🚀 [pappacena]
 
 
