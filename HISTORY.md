@@ -2,6 +2,11 @@ Changelog
 =========
 
 
+(unreleased)
+------------
+- Release: version 0.0.1 🚀 [pappacena]
+
+
 0.0.1 (2021-10-06)
 ------------------
 - Adding some docs. [pappacena]
