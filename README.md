@@ -17,12 +17,14 @@ and `node-2`. In `node-1` you have:
 
 ```python
 mem = SharedMemory(listen=('0.0.0.0', 3333), forward_nodes=[('node-2', 3333)])
+mem.start()
 ```
 
 In `node-2`, you have:
 
 ```python
 mem = SharedMemory(listen=('0.0.0.0', 3333), forward_nodes=[('node-1', 3333)])
+mem.start()
 ```
 
 Now, if you set any key in one of the nodes like this:
@@ -50,6 +52,7 @@ from pyrtshm import SharedMemory
 # host & sport of the other nodes (the "forward nodes").
 other_nodes = [('host1', 3333), ('host2', 3333), ('host3', 3333)]
 mem = SharedMemory(listen=('0.0.0.0', 3333), forward_nodes=other_nodes)
+mem.start()
 
 # Set a key, making it available to other nodes.
 mem["host1/cpu"] = 75.1
