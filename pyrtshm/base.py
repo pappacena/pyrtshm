@@ -1,9 +1,9 @@
 import pickle
 import socket
 from threading import Thread
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from pyrtshm.protocol.protocol_v1_pb2 import State, OperationType
+from pyrtshm.protocol.protocol_v1_pb2 import OperationType, State
 
 
 class SharedMemory(Thread):
@@ -103,6 +103,9 @@ class SharedMemory(Thread):
             state = State(key=self.encode_key(key), seq_number=1, data=data)
             self.states[key] = state
         return state
+
+    def get(self, key, default_value=None):
+        return self.data.get(key, default_value)
 
     def __getitem__(self, item):
         return self.data[item]

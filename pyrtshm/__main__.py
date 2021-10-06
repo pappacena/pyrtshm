@@ -1,5 +1,6 @@
 import argparse  # pragma: no cover
 
+
 def main() -> None:  # pragma: no cover
     """
     The main function executes on commands:

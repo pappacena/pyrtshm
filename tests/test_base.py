@@ -16,12 +16,15 @@ class ValueObject:
 
 class TestBasicForwarding(TestCase):
     def start_nodes(self, n=3, initial_port=5551):
-        host = '127.0.0.1'
+        host = "127.0.0.1"
         all_forwards = [(host, initial_port + i) for i in range(n)]
         nodes = []
         for i in range(n):
-            forwards = [(host, port) for host, port in all_forwards
-                        if port != initial_port + i]
+            forwards = [
+                (host, port)
+                for host, port in all_forwards
+                if port != initial_port + i
+            ]
             nodes.append(SharedMemory((host, initial_port + i), forwards))
         for n in nodes:
             # Force socket initialization and timeout.
@@ -65,12 +68,14 @@ class TestBasicForwarding(TestCase):
         keys = [1, b"bin", "some str", 1.34, (1, 2)]
         values = keys + [{1: "a"}, [3, 2, 1], ValueObject("1", b"x", 123)]
         for key in keys:
-            if key == 1: continue
+            if key == 1:
+                continue
             for value in values:
                 nodes = self.start_nodes()
                 self.assertTrue(
                     self.values_got_set_and_forwarded(nodes, key, value),
-                    f"Error setting {key}: {value}")
+                    f"Error setting {key}: {value}",
+                )
                 self.stop_nodes(nodes)
             return
 
@@ -82,6 +87,16 @@ class TestBasicForwarding(TestCase):
         self.wait_nodes(nodes)
         for n in nodes:
             self.assertEqual(123, n[1])
+
+    def test_get_default_value_key_not_set(self):
+        nodes = self.start_nodes()
+        main = nodes[0]
+        main[1] = 123
+
+        self.wait_nodes(nodes)
+        for n in nodes:
+            self.assertEqual(123, n.get(1))
+            self.assertEqual(-1, n.get("no-existing-key", -1))
 
     def test_set_value_multiple_times(self):
         nodes = self.start_nodes()
@@ -105,4 +120,3 @@ class TestBasicForwarding(TestCase):
         for n in nodes:
             self.assertNotIn("x", n.states)
             self.assertRaises(KeyError, lambda: n[1])
-
