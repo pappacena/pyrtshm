@@ -80,43 +80,56 @@ class TestBasicForwarding(TestCase):
             return
 
     def test_set_value(self):
-        nodes = self.start_nodes()
-        main = nodes[0]
+        main, *nodes = self.start_nodes(n=3)
         main[1] = 123
 
-        self.wait_nodes(nodes)
+        self.wait_nodes([main] + nodes)
+        self.assertEqual(2, main.metrics.sent_packets)
+        self.assertEqual(0, main.metrics.forward_key_set)
         for n in nodes:
             self.assertEqual(123, n[1])
+            self.assertEqual(1, n.metrics.received_packets)
+            self.assertEqual(1, n.metrics.forward_key_set)
 
     def test_get_default_value_key_not_set(self):
-        nodes = self.start_nodes()
-        main = nodes[0]
+        main, *nodes = self.start_nodes(n=3)
         main[1] = 123
 
-        self.wait_nodes(nodes)
+        self.wait_nodes([main] + nodes)
         for n in nodes:
             self.assertEqual(123, n.get(1))
             self.assertEqual(-1, n.get("no-existing-key", -1))
 
     def test_set_value_multiple_times(self):
-        nodes = self.start_nodes()
-        main = nodes[0]
+        main, *nodes = self.start_nodes(n=3)
         main["x"] = 123
         main["x"] = 333
         main["x"] = 987
 
-        self.wait_nodes(nodes)
+        self.wait_nodes([main] + nodes)
+        self.assertEqual(2 * 3, main.metrics.sent_packets)
+        self.assertEqual(0, main.metrics.forward_key_set)
         for n in nodes:
             self.assertEqual(3, n.states["x"].seq_number)
             self.assertEqual(987, n["x"])
+            self.assertEqual(3, n.metrics.received_packets)
+            self.assertEqual(3, n.metrics.forward_key_set)
 
     def test_delete_value(self):
-        nodes = self.start_nodes()
-        main = nodes[0]
+        main, *nodes = self.start_nodes()
 
         main[1] = 123
         del main[1]
-        self.wait_nodes(nodes)
+
+        self.wait_nodes([main] + nodes)
+
+        # Should have send 4 packets: 2 to set, and 2 to del.
+        self.assertEqual(2 * 2, main.metrics.sent_packets)
+        self.assertEqual(0, main.metrics.forward_key_set)
+        self.assertEqual(0, main.metrics.forward_key_del)
         for n in nodes:
             self.assertNotIn("x", n.states)
             self.assertRaises(KeyError, lambda: n[1])
+            self.assertEqual(0, n.metrics.sent_packets)
+            self.assertEqual(1, n.metrics.forward_key_set)
+            self.assertEqual(1, n.metrics.forward_key_del)

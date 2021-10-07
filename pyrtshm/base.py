@@ -3,7 +3,8 @@ import socket
 from threading import Thread
 from typing import Dict, List, Optional, Tuple
 
-from pyrtshm.protocol.protocol_v1_pb2 import OperationType, State
+from .metrics import Metrics
+from .protocol.protocol_v1_pb2 import OperationType, State
 
 
 class SharedMemory(Thread):
@@ -13,6 +14,7 @@ class SharedMemory(Thread):
     socket: Optional[socket.socket]
     states: Dict
     data: Dict
+    metrics: Metrics
 
     def __init__(self, listen: Tuple, forward_nodes: List):
         """
@@ -27,6 +29,7 @@ class SharedMemory(Thread):
         self.socket = None
         self.data = {}
         self.states = {}
+        self.metrics = Metrics()
 
         self.forward_nodes = forward_nodes
 
@@ -64,6 +67,7 @@ class SharedMemory(Thread):
 
     def process_msg(self):
         data = self.socket.recv(self.sock_bufsize)
+        self.metrics.received_packets += 1
         msg = State()
         msg.ParseFromString(data)
         key = self.decode_key(msg.key)
@@ -71,24 +75,28 @@ class SharedMemory(Thread):
         current_state = self.states.get(key)
         if current_state and current_state.seq_number > msg.seq_number:
             # Don't override our value with older values.
+            self.metrics.out_of_order_count += 1
             return
 
         self.states[key] = msg
         if msg.operation_type == OperationType.DELETE:
             try:
                 del self.data[key]
+                self.metrics.forward_key_del += 1
             except KeyError:
                 # Delete operation should fail silently if the key doesn't
                 # exist. We might have missed the state setting this key,
                 # for example.
-                pass
+                self.metrics.delete_unknown_key_count += 1
         else:
             self.data[key] = self.decode_value(msg.data)
+            self.metrics.forward_key_set += 1
 
     def forward(self, packets):
         for destination in self.forward_nodes:
             for pkt in packets:
                 self.socket.sendto(pkt, destination)
+                self.metrics.sent_packets += 1
 
     def stop(self):
         self.should_run = False
