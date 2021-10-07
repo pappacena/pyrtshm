@@ -2,6 +2,13 @@ Changelog
 =========
 
 
+0.0.3 (2021-10-07)
+------------------
+- Adding some metrics. [pappacena]
+- Fixing documentation. [pappacena]
+- Release: version 0.0.2 🚀 [pappacena]
+
+
 0.0.2 (2021-10-06)
 ------------------
 - Including deps. [pappacena]
