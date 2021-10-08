@@ -2,6 +2,12 @@ Changelog
 =========
 
 
+0.0.4 (2021-10-08)
+------------------
+- Send forward packets in background. [pappacena]
+- Release: version 0.0.3 🚀 [pappacena]
+
+
 0.0.3 (2021-10-07)
 ------------------
 - Adding some metrics. [pappacena]
