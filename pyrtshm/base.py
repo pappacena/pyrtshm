@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import pickle
 import socket
+from queue import Queue
 from threading import Thread
 from typing import Dict, List, Optional, Tuple
 
@@ -7,10 +10,39 @@ from .metrics import Metrics
 from .protocol.protocol_v1_pb2 import OperationType, State
 
 
+class ForwardThread(Thread):
+    packet_queue: Queue
+    destinations: List[Tuple[str, int]]
+    sock: socket.socket
+
+    def __init__(self, sock, destinations, metrics):
+        super().__init__(daemon=True)
+        self.destinations = destinations
+        self.packet_queue = Queue()
+        self.metrics = metrics
+        self.socket = sock
+
+    def send(self, data):
+        self.packet_queue.put(data)
+
+    def run(self):
+        while True:
+            msg = self.packet_queue.get()
+            if msg is None:
+                break
+            for destination in self.destinations:
+                self.socket.sendto(msg, destination)
+                self.metrics.sent_packets += 1
+
+    def stop(self):
+        self.packet_queue.put(None)
+
+
 class SharedMemory(Thread):
     host: str
     port: int
     forward_list: List
+    forward_thread: ForwardThread
     socket: Optional[socket.socket]
     states: Dict
     data: Dict
@@ -24,7 +56,7 @@ class SharedMemory(Thread):
         :param forward_nodes: The list of tuples to where incoming states
             should be forwarded.
         """
-        super(SharedMemory, self).__init__()
+        super(SharedMemory, self).__init__(daemon=True)
         self.host, self.port = listen
         self.socket = None
         self.data = {}
@@ -44,6 +76,12 @@ class SharedMemory(Thread):
         self.socket.bind((self.host, self.port))
         return self.socket
 
+    def init_forward_thread(self):
+        self.forward_thread = ForwardThread(
+            self.socket, self.forward_nodes, self.metrics
+        )
+        self.forward_thread.start()
+
     def decode_key(self, obj_bytes: bytes) -> object:
         return pickle.loads(obj_bytes)
 
@@ -57,7 +95,7 @@ class SharedMemory(Thread):
         return pickle.dumps(obj)
 
     def run(self):
-        self.init_socket()
+        self.init_forward_thread()
         with self.init_socket():
             while self.should_run:
                 try:
@@ -92,14 +130,9 @@ class SharedMemory(Thread):
             self.data[key] = self.decode_value(msg.data)
             self.metrics.forward_key_set += 1
 
-    def forward(self, packets):
-        for destination in self.forward_nodes:
-            for pkt in packets:
-                self.socket.sendto(pkt, destination)
-                self.metrics.sent_packets += 1
-
     def stop(self):
         self.should_run = False
+        self.forward_thread.stop()
 
     def get_next_state(self, key: object, value: object) -> State:
         state = self.states.get(key)
@@ -121,10 +154,10 @@ class SharedMemory(Thread):
     def __setitem__(self, key: object, value: object):
         state = self.get_next_state(key, value)
         self.data[key] = value
-        self.forward([state.SerializeToString()])
+        self.forward_thread.send(state.SerializeToString())
 
     def __delitem__(self, key):
         state = self.get_next_state(key, None)
         state.operation_type = OperationType.DELETE
         del self.data[key]
-        self.forward([state.SerializeToString()])
+        self.forward_thread.send(state.SerializeToString())
